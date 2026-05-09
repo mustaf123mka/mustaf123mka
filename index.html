@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>عقارات كربلاء</title>
+<meta name="theme-color" content="#0f4c3a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="عقارات كربلاء">
+<link rel="manifest" href="manifest.json">
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Amiri:wght@400;700&display=swap" rel="stylesheet">
+
+<style>
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+:root {
+  --primary: #0f4c3a;
+  --primary-l: #1a6b52;
+  --gold: #c9a961;
+  --gold-b: #e8c97a;
+  --bg: #f7f5f0;
+  --card: #ffffff;
+  --text: #1a1a1a;
+  --dim: #6b6b6b;
+  --border: #e5e0d8;
+  --red: #d64545;
+  --green: #16a34a;
+  --shadow: 0 4px 20px rgba(0,0,0,0.12);
+}
+
+html,body { height:100%; overflow:hidden; font-family:'Cairo',sans-serif; background:var(--bg); color:var(--text); }
+
+/* HEADER */
+.header {
+  position:fixed; top:0; left:0; right:0;
+  background:var(--primary);
+  padding:12px 16px;
+  z-index:500;
+  display:flex; align-items:center; justify-content:space-between;
+  box-shadow:0 2px 20px rgba(0,0,0,0.2);
+}
+.logo { display:flex; align-items:center; gap:10px; }
+.logo-icon { width:36px; height:36px; background:var(--gold); border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:18px; }
+.logo-text h1 { font-family:'Amiri',serif; font-size:17px; color:white; line-height:1; }
+.logo-text span { font-size:10px; color:rgba(255,255,255,0.7); }
+.header-right { display:flex; align-items:center; gap:8px; }
+.count-badge { background:rgba(255,255,255,0.15); color:white; padding:5px 10px; border-radius:8px; font-size:12px; font-weight:700; }
+.count-badge b { color:var(--gold-b); }
+
+/* MAP */
+#map { position:fixed; top:60px; left:0; right:0; bottom:0; z-index:1; }
+
+/* PICKER BAR */
+.picker-bar {
+  position:fixed; top:72px; left:12px; right:12px;
+  background:var(--primary); color:white;
+  padding:12px 16px; border-radius:14px;
+  z-index:600; display:none;
+  align-items:center; justify-content:space-between;
+  box-shadow:var(--shadow);
+  animation:slideDown 0.3s ease;
+}
+.picker-bar.show { display:flex; }
+@keyframes slideDown { from{opacity:0;transform:translateY(-10px)} to{opacity:1;transform:translateY(0)} }
+.picker-text { font-size:13px; font-weight:600; }
+.picker-actions { display:flex; gap:6px; }
+.picker-btn { background:white; color:var(--primary); border:none; padding:7px 14px; border-radius:8px; font-family:'Cairo',sans-serif; font-weight:700; font-size:12px; cursor:pointer; }
+.picker-btn.cancel { background:rgba(255,255,255,0.2); color:white; }
+
+/* FABs */
+.fab-add {
+  position:fixed; bottom:28px; left:20px;
+  width:58px; height:58px;
+  background:linear-gradient(135deg,var(--gold-b),var(--gold));
+  color:var(--primary); border:none; border-radius:50%;
+  font-size:28px; cursor:pointer; z-index:400;
+  box-shadow:0 8px 24px rgba(201,169,97,0.5);
+  display:flex; align-items:center; justify-content:center;
+  transition:transform 0.2s;
+}
+.fab-add:active { transform:scale(0.92); }
+
+.fab-admin {
+  position:fixed; bottom:28px; right:20px;
+  width:50px; height:50px;
+  background:var(--primary); color:white;
+  border:none; border-radius:50%;
+  font-size:20px; cursor:pointer; z-index:400;
+  box-shadow:0 6px 20px rgba(15,76,58,0.4);
+  display:flex; align-items:center; justify-content:center;
+  position:fixed;
+}
+.fab-admin:active { transform:scale(0.92); }
+.notif-badge {
+  position:absolute; top:-4px; right:-4px;
+  background:var(--red); color:white;
+  font-size:10px; font-weight:700;
+  min-width:18px; height:18px; border-radius:9px;
+  padding:0 4px; display:none; align-items:center; justify-content:center;
+  border:2px solid white;
+}
+
+/* OVERLAY + SHEET */
+.overlay { position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:1000; display:none; backdrop-filter:blur(5px); }
+.overlay.show { display:block; animation:fadeIn 0.25s; }
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+
+.sheet {
+  position:fixed; bottom:0; left:0; right:0;
+  background:var(--card); border-radius:22px 22px 0 0;
+  z-index:1001; max-height:92vh; overflow-y:auto;
+  transform:translateY(100%);
+  transition:transform 0.35s cubic-bezier(0.32,0.72,0,1);
+  box-shadow:0 -8px 40px rgba(0,0,0,0.18);
+}
+.sheet.show { transform:translateY(0); }
+.handle { width:38px; height:4px; background:var(--border); border-radius:2px; margin:12px auto 0; }
+.sheet-head {
+  padding:14px 18px 12px;
+  border-bottom:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between;
+  position:sticky; top:0; background:white; z-index:2;
+  border-radius:22px 22px 0 0;
+}
+.sheet-head h2 { font-size:17px; font-weight:700; color:var(--primary); }
+.close-btn { background:var(--bg); border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; font-size:14px; color:var(--dim); }
+.sheet-body { padding:18px; padding-bottom:32px; }
+
+/* FORM */
+.fg { margin-bottom:14px; }
+.fg label { display:block; font-size:12px; font-weight:700; color:var(--text); margin-bottom:5px; }
+.fg label .req { color:var(--red); }
+.fi, .fs, .ft {
+  width:100%; padding:11px 13px;
+  border:1.5px solid var(--border); border-radius:10px;
+  font-family:'Cairo',sans-serif; font-size:14px;
+  background:white; color:var(--text);
+  transition:border-color 0.2s;
+}
+.fi:focus,.fs:focus,.ft:focus { outline:none; border-color:var(--primary); }
+.ft { resize:vertical; min-height:80px; }
+
+.type-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:7px; }
+.type-opt {
+  padding:12px 6px; border:1.5px solid var(--border);
+  border-radius:10px; background:white; cursor:pointer;
+  text-align:center; font-size:11px; font-weight:700;
+  transition:all 0.2s; font-family:'Cairo',sans-serif;
+}
+.type-opt .ic { font-size:20px; display:block; margin-bottom:3px; }
+.type-opt.on { border-color:var(--primary); background:var(--primary); color:white; }
+
+.deal-grid { display:grid; grid-template-columns:1fr 1fr; gap:7px; }
+.deal-opt {
+  padding:11px; border:1.5px solid var(--border);
+  border-radius:10px; background:white; cursor:pointer;
+  text-align:center; font-weight:700; font-size:13px;
+  font-family:'Cairo',sans-serif; transition:all 0.2s;
+}
+.deal-opt.on { border-color:var(--gold); background:var(--gold); color:#1a1a1a; }
+
+.info-box { background:var(--bg); border-radius:10px; padding:10px 12px; font-size:12px; color:var(--dim); margin-bottom:8px; display:flex; align-items:center; gap:6px; }
+.loc-btn {
+  width:100%; padding:13px; background:var(--primary); color:white;
+  border:none; border-radius:10px; font-family:'Cairo',sans-serif;
+  font-weight:700; font-size:14px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; gap:8px;
+}
+.loc-ok { background:rgba(22,163,74,0.1); border:1.5px solid var(--green); color:var(--green); padding:11px; border-radius:10px; text-align:center; font-weight:700; font-size:13px; display:none; align-items:center; justify-content:center; gap:6px; }
+
+.img-area {
+  border:2px dashed var(--border); border-radius:12px; padding:18px;
+  text-align:center; cursor:pointer; transition:all 0.2s;
+}
+.img-area:hover { border-color:var(--primary); background:var(--bg); }
+.img-area .ic { font-size:28px; margin-bottom:6px; }
+.img-area .t { font-weight:700; font-size:13px; margin-bottom:3px; }
+.img-area .h { font-size:11px; color:var(--dim); }
+.img-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:7px; margin-top:8px; }
+.img-item { position:relative; aspect-ratio:1; border-radius:8px; overflow:hidden; background:var(--bg); }
+.img-item img { width:100%; height:100%; object-fit:cover; }
+.img-del { position:absolute; top:3px; left:3px; background:var(--red); color:white; border:none; width:20px; height:20px; border-radius:50%; cursor:pointer; font-size:11px; display:flex; align-items:center; justify-content:center; }
+
+.submit-btn {
+  width:100%; padding:15px; margin-top:6px;
+  background:linear-gradient(135deg,var(--gold-b),var(--gold));
+  color:#1a1a1a; border:none; border-radius:12px;
+  font-family:'Cairo',sans-serif; font-size:16px; font-weight:800;
+  cursor:pointer; box-shadow:0 4px 16px rgba(201,169,97,0.35);
+}
+.submit-btn:active { transform:scale(0.98); }
+.submit-btn:disabled { opacity:0.6; cursor:not-allowed; }
+
+/* PROPERTY DETAIL */
+.prop-imgs { height:230px; background:#1a1a1a; overflow:hidden; position:relative; border-radius:0; }
+.imgs-track { display:flex; overflow-x:auto; scroll-snap-type:x mandatory; height:100%; scrollbar-width:none; }
+.imgs-track::-webkit-scrollbar { display:none; }
+.img-slide { min-width:100%; height:100%; scroll-snap-align:start; }
+.img-slide img { width:100%; height:100%; object-fit:cover; }
+.img-empty { width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:rgba(255,255,255,0.3); font-size:60px; }
+.deal-tag { position:absolute; top:12px; right:12px; background:var(--gold); color:#1a1a1a; padding:5px 13px; border-radius:20px; font-weight:800; font-size:12px; z-index:2; }
+.prop-body { padding:18px; }
+.prop-price { font-family:'Amiri',serif; font-size:26px; font-weight:700; color:var(--primary); margin-bottom:3px; }
+.prop-sub { font-size:14px; color:var(--dim); margin-bottom:14px; }
+.specs { display:grid; grid-template-columns:repeat(3,1fr); gap:7px; margin-bottom:16px; }
+.spec { background:var(--bg); padding:10px 6px; border-radius:10px; text-align:center; }
+.spec .sl { font-size:10px; color:var(--dim); margin-bottom:3px; }
+.spec .sv { font-weight:700; color:var(--primary); font-size:13px; }
+.prop-desc { background:var(--bg); padding:14px; border-radius:12px; margin-bottom:14px; font-size:13px; line-height:1.7; }
+.prop-actions { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.act-btn {
+  padding:13px; border:none; border-radius:12px;
+  font-family:'Cairo',sans-serif; font-weight:700; font-size:14px;
+  cursor:pointer; display:flex; align-items:center; justify-content:center; gap:7px;
+  text-decoration:none; transition:transform 0.2s;
+}
+.act-btn:active { transform:scale(0.97); }
+.act-call { background:var(--green); color:white; }
+.act-dir { background:var(--primary); color:white; }
+
+/* ADMIN */
+.admin-tabs { display:flex; gap:7px; margin-bottom:14px; }
+.atab { flex:1; padding:10px; background:var(--bg); border:none; border-radius:9px; font-family:'Cairo',sans-serif; font-weight:700; cursor:pointer; font-size:13px; }
+.atab.on { background:var(--primary); color:white; }
+.admin-list { display:flex; flex-direction:column; gap:9px; }
+.acard { background:var(--bg); border-radius:12px; padding:11px; display:flex; gap:11px; }
+.athumb { width:68px; height:68px; border-radius:9px; background:var(--primary); flex-shrink:0; overflow:hidden; display:flex; align-items:center; justify-content:center; color:rgba(255,255,255,0.4); font-size:22px; }
+.athumb img { width:100%; height:100%; object-fit:cover; }
+.ainfo { flex:1; min-width:0; }
+.ainfo h4 { font-size:13px; color:var(--primary); margin-bottom:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ainfo .am { font-size:11px; color:var(--dim); margin-bottom:6px; }
+.abtns { display:flex; gap:5px; }
+.abtn { flex:1; padding:6px; border:none; border-radius:7px; font-family:'Cairo',sans-serif; font-size:11px; font-weight:700; cursor:pointer; }
+.abtn.approve { background:var(--green); color:white; }
+.abtn.reject { background:var(--red); color:white; }
+.abtn.delete { background:var(--red); color:white; }
+.abtn.view { background:var(--primary); color:white; }
+.empty { text-align:center; padding:40px 20px; color:var(--dim); }
+.empty .ei { font-size:44px; margin-bottom:10px; opacity:0.4; }
+
+/* ADMIN LOGIN */
+.admin-login { padding:28px 18px; text-align:center; }
+.admin-login .ei { font-size:48px; margin-bottom:10px; }
+
+/* LOADING */
+.loading {
+  position:fixed; inset:0;
+  background:var(--primary);
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  z-index:9999; color:white;
+  transition:opacity 0.4s;
+}
+.loading.hide { opacity:0; pointer-events:none; }
+.loading .logo-load { width:70px; height:70px; background:var(--gold); border-radius:18px; display:flex; align-items:center; justify-content:center; font-size:36px; margin-bottom:16px; animation:pulse 1.5s ease infinite; }
+@keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.07)} }
+.loading h2 { font-family:'Amiri',serif; font-size:26px; margin-bottom:6px; }
+.loading p { font-size:13px; opacity:0.7; }
+.spinner { width:30px; height:30px; border:3px solid rgba(255,255,255,0.2); border-top-color:var(--gold); border-radius:50%; animation:spin 0.8s linear infinite; margin-top:20px; }
+@keyframes spin { to{transform:rotate(360deg)} }
+
+/* TOAST */
+.toast {
+  position:fixed; bottom:100px; left:50%;
+  transform:translateX(-50%) translateY(120px);
+  background:var(--primary); color:white;
+  padding:13px 22px; border-radius:12px;
+  font-weight:700; z-index:2000;
+  transition:transform 0.3s; box-shadow:var(--shadow);
+  max-width:85%; text-align:center; font-size:13px;
+}
+.toast.show { transform:translateX(-50%) translateY(0); }
+.toast.ok { background:var(--green); }
+.toast.err { background:var(--red); }
+
+/* CUSTOM MARKER */
+.cmarker {
+  background:linear-gradient(135deg,var(--gold-b),var(--gold));
+  border:2.5px solid white;
+  border-radius:50% 50% 50% 0;
+  width:36px!important; height:36px!important;
+  transform:rotate(-45deg);
+  display:flex!important; align-items:center; justify-content:center;
+  box-shadow:0 4px 12px rgba(0,0,0,0.28);
+  font-size:15px;
+  margin-left:-18px!important; margin-top:-36px!important;
+}
+.cmarker > span { transform:rotate(45deg); }
+.leaflet-control-attribution { font-size:9px!important; }
+</style>
+
+</head>
+<body>
+
+<!-- LOADING -->
+
+<div class="loading" id="loading">
+  <div class="logo-load">🏠</div>
+  <h2>عقارات كربلاء</h2>
+  <p>جاري تحميل التطبيق...</p>
+  <div class="spinner"></div>
+</div>
+
+<!-- HEADER -->
+
+<header class="header">
+  <div class="logo">
+    <div class="logo-icon">🏠</div>
+    <div class="logo-text">
+      <h1>عقارات كربلاء</h1>
+      <span>خريطة العقارات</span>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="count-badge"><b id="prop-count">0</b> عقار</div>
+  </div>
+</header>
+
+<!-- MAP -->
+
+<div id="map"></div>
+
+<!-- PICKER BAR -->
+
+<div class="picker-bar" id="picker-bar">
+  <div class="picker-text" id="picker-text">📍 اضغط على الخريطة</div>
+  <div class="picker-actions">
+    <button class="picker-btn" id="confirm-pick" onclick="confirmPick()" style="display:none">تأكيد ✓</button>
+    <button class="picker-btn cancel" onclick="cancelPick()">إلغاء</button>
+  </div>
+</div>
+
+<!-- FABs -->
+
+<button class="fab-add" onclick="openAdd()" title="أضف عقار">+</button>
+<button class="fab-admin" onclick="openAdmin()" title="الإدارة" style="position:fixed;bottom:28px;right:20px;z-index:400;">
+⚙️
+<span class="notif-badge" id="notif-badge">0</span>
+</button>
+
+<!-- OVERLAY -->
+
+<div class="overlay" id="overlay" onclick="closeAll()"></div>
+
+<!-- ADD SHEET -->
+
+<div class="sheet" id="add-sheet">
+  <div class="handle"></div>
+  <div class="sheet-head">
+    <h2>إضافة عقار جديد</h2>
+    <button class="close-btn" onclick="closeAll()">✕</button>
+  </div>
+  <div class="sheet-body">
+    <form id="add-form" onsubmit="submitProp(event)">
+      <div class="fg">
+        <label>نوع العقار <span class="req">*</span></label>
+        <div class="type-grid">
+          <div class="type-opt on" onclick="pickType(this,'بيت')"><span class="ic">🏠</span>بيت</div>
+          <div class="type-opt" onclick="pickType(this,'شقة')"><span class="ic">🏢</span>شقة</div>
+          <div class="type-opt" onclick="pickType(this,'محل')"><span class="ic">🏪</span>محل</div>
+          <div class="type-opt" onclick="pickType(this,'أرض')"><span class="ic">🟫</span>أرض</div>
+        </div>
+      </div>
+      <div class="fg">
+        <label>نوع العرض <span class="req">*</span></label>
+        <div class="deal-grid">
+          <div class="deal-opt on" onclick="pickDeal(this,'بيع')">للبيع</div>
+          <div class="deal-opt" onclick="pickDeal(this,'إيجار')">للإيجار</div>
+        </div>
+      </div>
+      <div class="fg">
+        <label>موقع العقار <span class="req">*</span></label>
+        <div class="info-box">📍 حدد الموقع بدقة على الخريطة</div>
+        <button type="button" class="loc-btn" id="loc-btn" onclick="startPick('location')">🗺️ تحديد الموقع على الخريطة</button>
+        <div class="loc-ok" id="loc-ok">✓ تم تحديد الموقع</div>
+      </div>
+      <div class="fg">
+        <label>حدود العقار (اختياري)</label>
+        <div class="info-box">🔲 ارسم حدود الأرض/العقار على الخريطة</div>
+        <button type="button" class="loc-btn" id="bound-btn" onclick="startPick('boundary')" style="background:var(--primary-l)">🔲 رسم الحدود</button>
+        <div class="loc-ok" id="bound-ok">✓ تم رسم الحدود</div>
+      </div>
+      <div class="fg">
+        <label>السعر (دينار عراقي) <span class="req">*</span></label>
+        <input type="text" class="fi" id="p-price" placeholder="مثال: 150,000,000" required oninput="fmtPrice(this)">
+      </div>
+      <div class="fg">
+        <label>المساحة (م²) <span class="req">*</span></label>
+        <input type="number" class="fi" id="p-area" placeholder="مثال: 200" required min="1">
+      </div>
+      <div class="fg">
+        <label>عدد الغرف</label>
+        <input type="number" class="fi" id="p-rooms" placeholder="مثال: 3" min="0">
+      </div>
+      <div class="fg">
+        <label>رقم التواصل <span class="req">*</span></label>
+        <input type="tel" class="fi" id="p-phone" placeholder="07XX XXX XXXX" required>
+      </div>
+      <div class="fg">
+        <label>الوصف <span class="req">*</span></label>
+        <textarea class="ft" id="p-desc" placeholder="المنطقة، الخدمات القريبة، المميزات..." required minlength="10"></textarea>
+      </div>
+      <div class="fg">
+        <label>الصور <span class="req">*</span> (حتى 6 صور)</label>
+        <div class="img-area" onclick="document.getElementById('img-in').click()">
+          <div class="ic">📷</div>
+          <div class="t">اضغط لإضافة صور</div>
+          <div class="h">حتى 6 صور</div>
+        </div>
+        <input type="file" id="img-in" accept="image/*" multiple style="display:none" onchange="handleImgs(event)">
+        <div class="img-grid" id="img-preview"></div>
+      </div>
+      <button type="submit" class="submit-btn" id="sub-btn">إرسال للمراجعة</button>
+    </form>
+  </div>
+</div>
+
+<!-- DETAIL SHEET -->
+
+<div class="sheet" id="detail-sheet">
+  <div class="handle"></div>
+  <div class="sheet-head">
+    <h2>تفاصيل العقار</h2>
+    <button class="close-btn" onclick="closeAll()">✕</button>
+  </div>
+  <div id="detail-body"></div>
+</div>
+
+<!-- ADMIN SHEET -->
+
+<div class="sheet" id="admin-sheet">
+  <div class="handle"></div>
+  <div class="sheet-head">
+    <h2>لوحة الإدارة</h2>
+    <button class="close-btn" onclick="closeAll()">✕</button>
+  </div>
+  <div id="admin-body"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- LEAFLET -->
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<!-- FIREBASE -->
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
+import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAVi9PGQsojgdb1GzFePPEEcFPDi6bl45E",
+  authDomain: "karbala-realestate.firebaseapp.com",
+  projectId: "karbala-realestate",
+  storageBucket: "karbala-realestate.firebasestorage.app",
+  messagingSenderId: "6398176274",
+  appId: "1:6398176274:web:8fa9ecffdb382bc55a7ccb",
+  measurementId: "G-NBPJW60WYQ"
+};
+
+const fbApp = initializeApp(firebaseConfig);
+const db = getFirestore(fbApp);
+
+// ====== STATE ======
+const ADMIN_PASS = 'mustafa2024';
+const KARBALA = [32.6149, 44.0249];
+let map, markers = [], tempMarker = null, tempPoly = null;
+let pickMode = null, pickedLoc = null, pickedBound = [], boundPts = [];
+let imgs = [], propType = 'بيت', propDeal = 'بيع';
+let isAdmin = false;
+let allProps = [];
+
+// ====== MAP ======
+function initMap() {
+  map = L.map('map', { zoomControl: true }).setView(KARBALA, 13);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19, attribution: '© OpenStreetMap'
+  }).addTo(map);
+  map.on('click', onMapClick);
+}
+
+function onMapClick(e) {
+  if (pickMode === 'location') {
+    pickedLoc = [e.latlng.lat, e.latlng.lng];
+    if (tempMarker) map.removeLayer(tempMarker);
+    tempMarker = L.marker(pickedLoc, { icon: makeIcon(propType) }).addTo(map);
+    document.getElementById('confirm-pick').style.display = 'inline-block';
+    document.getElementById('picker-text').textContent = '✓ اضغط تأكيد أو اختر مكان آخر';
+  } else if (pickMode === 'boundary') {
+    boundPts.push([e.latlng.lat, e.latlng.lng]);
+    if (tempPoly) map.removeLayer(tempPoly);
+    if (boundPts.length >= 2) {
+      tempPoly = L.polygon(boundPts, { color: '#c9a961', fillColor: '#e8c97a', fillOpacity: 0.3, weight: 2 }).addTo(map);
+    }
+    document.getElementById('picker-text').textContent = `🔲 ${boundPts.length} نقطة — أضف أكثر أو اضغط تأكيد`;
+    if (boundPts.length >= 3) document.getElementById('confirm-pick').style.display = 'inline-block';
+  }
+}
+
+function makeIcon(type) {
+  const em = { 'بيت':'🏠','شقة':'🏢','محل':'🏪','أرض':'🟫' }[type] || '🏠';
+  return L.divIcon({ className:'cmarker', html:`<span>${em}</span>`, iconSize:[36,36], iconAnchor:[18,36] });
+}
+
+// ====== PICKING ======
+window.startPick = function(mode) {
+  pickMode = mode;
+  closeAll(true);
+  const bar = document.getElementById('picker-bar');
+  bar.classList.add('show');
+  document.getElementById('confirm-pick').style.display = 'none';
+  if (mode === 'location') {
+    if (tempMarker) { map.removeLayer(tempMarker); tempMarker = null; }
+    pickedLoc = null;
+    document.getElementById('picker-text').textContent = '📍 اضغط على الخريطة لتحديد الموقع';
+  } else {
+    if (!pickedLoc) { toast('حدد الموقع أولاً','err'); pickMode=null; bar.classList.remove('show'); openAdd(); return; }
+    boundPts = [];
+    if (tempPoly) { map.removeLayer(tempPoly); tempPoly = null; }
+    document.getElementById('picker-text').textContent = '🔲 اضغط لإضافة نقاط الحدود (3 على الأقل)';
+  }
+}
+
+window.confirmPick = function() {
+  const bar = document.getElementById('picker-bar');
+  if (pickMode === 'location') {
+    if (!pickedLoc) return;
+    document.getElementById('loc-ok').style.display = 'flex';
+    document.getElementById('loc-btn').style.display = 'none';
+  } else {
+    if (boundPts.length < 3) { toast('أضف 3 نقاط على الأقل','err'); return; }
+    pickedBound = [...boundPts];
+    document.getElementById('bound-ok').style.display = 'flex';
+    document.getElementById('bound-btn').style.display = 'none';
+  }
+  bar.classList.remove('show');
+  pickMode = null;
+  openAdd();
+}
+
+window.cancelPick = function() {
+  if (pickMode === 'location') { pickedLoc = null; if(tempMarker){map.removeLayer(tempMarker);tempMarker=null;} }
+  else { boundPts=[]; if(tempPoly){map.removeLayer(tempPoly);tempPoly=null;} }
+  document.getElementById('picker-bar').classList.remove('show');
+  pickMode = null;
+  openAdd();
+}
+
+// ====== SHEETS ======
+function showSheet(id) {
+  document.getElementById('overlay').classList.add('show');
+  document.getElementById(id).classList.add('show');
+}
+
+window.closeAll = function(keepPicker = false) {
+  document.getElementById('overlay').classList.remove('show');
+  document.querySelectorAll('.sheet').forEach(s => s.classList.remove('show'));
+}
+
+window.openAdd = function() { showSheet('add-sheet'); }
+
+// ====== FORM ======
+window.pickType = function(el, t) {
+  propType = t;
+  document.querySelectorAll('.type-opt').forEach(o => o.classList.remove('on'));
+  el.classList.add('on');
+}
+
+window.pickDeal = function(el, d) {
+  propDeal = d;
+  document.querySelectorAll('.deal-opt').forEach(o => o.classList.remove('on'));
+  el.classList.add('on');
+}
+
+window.fmtPrice = function(el) {
+  const v = el.value.replace(/[^\d]/g,'');
+  if(v) el.value = parseInt(v).toLocaleString('en-US');
+}
+
+window.handleImgs = function(e) {
+  const files = Array.from(e.target.files);
+  const rem = 6 - imgs.length;
+  files.slice(0, rem).forEach(f => {
+    if (!f.type.startsWith('image/')) return;
+    const r = new FileReader();
+    r.onload = ev => compress(ev.target.result, 800, 0.65).then(c => { imgs.push(c); renderImgs(); });
+    r.readAsDataURL(f);
+  });
+  e.target.value = '';
+}
+
+function compress(src, maxW, q) {
+  return new Promise(res => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      let w = img.width, h = img.height;
+      if (w > maxW) { h = (maxW/w)*h; w = maxW; }
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img,0,0,w,h);
+      res(c.toDataURL('image/jpeg', q));
+    };
+    img.src = src;
+  });
+}
+
+function renderImgs() {
+  document.getElementById('img-preview').innerHTML = imgs.map((img,i) => `
+    <div class="img-item">
+      <img src="${img}">
+      <button type="button" class="img-del" onclick="removeImg(${i})">✕</button>
+    </div>`).join('');
+}
+
+window.removeImg = function(i) { imgs.splice(i,1); renderImgs(); }
+
+// ====== SUBMIT ======
+window.submitProp = async function(e) {
+  e.preventDefault();
+  if (!pickedLoc) { toast('حدد موقع العقار','err'); return; }
+  if (imgs.length === 0) { toast('أضف صورة واحدة على الأقل','err'); return; }
+  
+  const btn = document.getElementById('sub-btn');
+  btn.disabled = true;
+  btn.textContent = 'جاري الإرسال...';
+  
+  try {
+    const data = {
+      type: propType,
+      deal: propDeal,
+      lat: pickedLoc[0],
+      lng: pickedLoc[1],
+      boundary: pickedBound.length >= 3 ? pickedBound : null,
+      price: document.getElementById('p-price').value,
+      area: document.getElementById('p-area').value,
+      rooms: document.getElementById('p-rooms').value || null,
+      phone: document.getElementById('p-phone').value.replace(/\s/g,''),
+      desc: document.getElementById('p-desc').value.trim(),
+      imgs: imgs,
+      status: isAdmin ? 'approved' : 'pending',
+      createdAt: Date.now()
+    };
+    
+    await addDoc(collection(db,'properties'), data);
+    closeAll();
+    resetForm();
+    toast(isAdmin ? '✓ تم نشر العقار' : '✓ تم إرسال طلبك للمراجعة', 'ok');
+  } catch(err) {
+    toast('حدث خطأ، حاول مرة ثانية','err');
+    console.error(err);
+  }
+  
+  btn.disabled = false;
+  btn.textContent = 'إرسال للمراجعة';
+}
+
+function resetForm() {
+  document.getElementById('add-form').reset();
+  propType = 'بيت'; propDeal = 'بيع';
+  pickedLoc = null; pickedBound = []; boundPts = []; imgs = [];
+  document.querySelectorAll('.type-opt').forEach((o,i) => o.classList.toggle('on', i===0));
+  document.querySelectorAll('.deal-opt').forEach((o,i) => o.classList.toggle('on', i===0));
+  document.getElementById('loc-ok').style.display = 'none';
+  document.getElementById('loc-btn').style.display = 'flex';
+  document.getElementById('bound-ok').style.display = 'none';
+  document.getElementById('bound-btn').style.display = 'flex';
+  document.getElementById('img-preview').innerHTML = '';
+  if (tempMarker) { map.removeLayer(tempMarker); tempMarker = null; }
+  if (tempPoly) { map.removeLayer(tempPoly); tempPoly = null; }
+}
+
+// ====== LOAD & RENDER ======
+function loadProps() {
+  onSnapshot(collection(db,'properties'), snap => {
+    allProps = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderMarkers();
+    updateCount();
+    updateBadge();
+  });
+}
+
+function renderMarkers() {
+  markers.forEach(m => { if(m.marker) map.removeLayer(m.marker); if(m.poly) map.removeLayer(m.poly); });
+  markers = [];
+  const approved = allProps.filter(p => p.status === 'approved');
+  
+  approved.forEach(p => {
+    const marker = L.marker([p.lat, p.lng], { icon: makeIcon(p.type) }).addTo(map);
+    marker.on('click', () => openDetail(p.id));
+    let poly = null;
+    if (p.boundary && p.boundary.length >= 3) {
+      poly = L.polygon(p.boundary, { color:'#c9a961', fillColor:'#e8c97a', fillOpacity:0.3, weight:2 }).addTo(map);
+      poly.on('click', () => openDetail(p.id));
+    }
+    markers.push({ id: p.id, marker, poly });
+  });
+}
+
+function updateCount() {
+  const n = allProps.filter(p => p.status === 'approved').length;
+  document.getElementById('prop-count').textContent = n;
+}
+
+function updateBadge() {
+  const n = allProps.filter(p => p.status === 'pending').length;
+  const b = document.getElementById('notif-badge');
+  if (n > 0) { b.textContent = n; b.style.display = 'flex'; }
+  else b.style.display = 'none';
+}
+
+// ====== DETAIL ======
+window.openDetail = function(id) {
+  const p = allProps.find(x => x.id === id);
+  if (!p) return;
+  
+  const imgs_html = p.imgs && p.imgs.length > 0
+    ? p.imgs.map(i => `<div class="img-slide"><img src="${i}"></div>`).join('')
+    : '<div class="img-empty">🏠</div>';
+  
+  const dir = `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}`;
+  const em = { 'بيت':'🏠','شقة':'🏢','محل':'🏪','أرض':'🟫' }[p.type] || '🏠';
+  
+  document.getElementById('detail-body').innerHTML = `
+    <div class="prop-imgs">
+      <div class="deal-tag">${p.deal === 'بيع' ? 'للبيع' : 'للإيجار'}</div>
+      <div class="imgs-track">${imgs_html}</div>
+    </div>
+    <div class="prop-body">
+      <div class="prop-price">${p.price} د.ع</div>
+      <div class="prop-sub">${em} ${p.type} ${p.deal === 'بيع' ? 'للبيع' : 'للإيجار'} — كربلاء</div>
+      <div class="specs">
+        <div class="spec"><div class="sl">المساحة</div><div class="sv">${p.area} م²</div></div>
+        <div class="spec"><div class="sl">الغرف</div><div class="sv">${p.rooms || '—'}</div></div>
+        <div class="spec"><div class="sl">النوع</div><div class="sv">${p.type}</div></div>
+      </div>
+      <div class="prop-desc">${esc(p.desc)}</div>
+      <div class="prop-actions">
+        <a href="tel:${p.phone}" class="act-btn act-call">📞 اتصال</a>
+        <a href="${dir}" target="_blank" class="act-btn act-dir">🗺️ الاتجاهات</a>
+      </div>
+    </div>`;
+  
+  showSheet('detail-sheet');
+  map.flyTo([p.lat, p.lng], 16);
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML.replace(/\n/g,'<br>');
+}
+
+// ====== ADMIN ======
+window.openAdmin = function() {
+  if (!isAdmin) {
+    document.getElementById('admin-body').innerHTML = `
+      <div class="admin-login">
+        <div class="ei">🔒</div>
+        <h3 style="margin-bottom:8px">دخول المدير</h3>
+        <p style="color:var(--dim);margin-bottom:16px;font-size:13px">أدخل كلمة المرور</p>
+        <input type="password" class="fi" id="apwd" placeholder="كلمة المرور" style="margin-bottom:12px">
+        <button class="submit-btn" onclick="checkAdmin()">دخول</button>
+      </div>`;
+    showSheet('admin-sheet');
+    setTimeout(() => document.getElementById('apwd')?.focus(), 300);
+  } else {
+    showAdminContent('pending');
+    showSheet('admin-sheet');
+  }
+}
+
+window.checkAdmin = function() {
+  const v = document.getElementById('apwd').value;
+  if (v === ADMIN_PASS) {
+    isAdmin = true;
+    showAdminContent('pending');
+    toast('✓ مرحباً مصطفى', 'ok');
+  } else {
+    toast('كلمة المرور خاطئة','err');
+  }
+}
+
+window.showAdminContent = function(tab) {
+  const pending = allProps.filter(p => p.status === 'pending');
+  const approved = allProps.filter(p => p.status === 'approved');
+  const list = tab === 'pending' ? pending : approved;
+  const em = { 'بيت':'🏠','شقة':'🏢','محل':'🏪','أرض':'🟫' };
+  
+  document.getElementById('admin-body').innerHTML = `
+    <div style="padding:16px 18px">
+      <div class="admin-tabs">
+        <button class="atab ${tab==='pending'?'on':''}" onclick="showAdminContent('pending')">قيد المراجعة (${pending.length})</button>
+        <button class="atab ${tab==='approved'?'on':''}" onclick="showAdminContent('approved')">المنشورة (${approved.length})</button>
+      </div>
+      <div class="admin-list" id="alist">
+        ${list.length === 0 ? `<div class="empty"><div class="ei">📭</div><div>لا يوجد عقارات</div></div>` :
+          list.map(p => `
+            <div class="acard">
+              <div class="athumb">${p.imgs?.length > 0 ? `<img src="${p.imgs[0]}">` : (em[p.type]||'🏠')}</div>
+              <div class="ainfo">
+                <h4>${p.type} ${p.deal === 'بيع' ? 'للبيع' : 'للإيجار'}</h4>
+                <div class="am">${p.price} د.ع · ${p.area} م² · 📞 ${p.phone}</div>
+                <div class="abtns">
+                  <button class="abtn view" onclick="openDetail('${p.id}')">عرض</button>
+                  ${tab === 'pending'
+                    ? `<button class="abtn approve" onclick="approveProp('${p.id}')">قبول</button>
+                       <button class="abtn reject" onclick="deleteProp('${p.id}','رفض')">رفض</button>`
+                    : `<button class="abtn delete" onclick="deleteProp('${p.id}','حذف')">حذف</button>`}
+                </div>
+              </div>
+            </div>`).join('')}
+      </div>
+    </div>`;
+}
+
+window.approveProp = async function(id) {
+  try {
+    await updateDoc(doc(db,'properties',id), { status:'approved' });
+    toast('✓ تم نشر العقار','ok');
+  } catch(e) { toast('حدث خطأ','err'); }
+}
+
+window.deleteProp = async function(id, action) {
+  if (!confirm(`هل أنت متأكد من ${action} هذا العقار؟`)) return;
+  try {
+    await deleteDoc(doc(db,'properties',id));
+    toast(`✓ تم ${action} العقار`,'ok');
+  } catch(e) { toast('حدث خطأ','err'); }
+}
+
+// ====== TOAST ======
+window.toast = function(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast show ${type}`;
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ====== INIT ======
+async function init() {
+  initMap();
+  loadProps();
+  setTimeout(() => {
+    document.getElementById('loading').classList.add('hide');
+    setTimeout(() => document.getElementById('loading').remove(), 500);
+  }, 1500);
+}
+
+init();
+</script>
+
+</body>
+</html>
